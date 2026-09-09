@@ -1,9 +1,11 @@
 package com.example.ui.screens
 
+import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.net.Uri
@@ -12,6 +14,7 @@ import android.provider.MediaStore
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -93,10 +96,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.db.MessageEntity
 import com.example.ui.components.AudioWaveformVisualizer
+import com.example.ui.components.BlinkingCursor
 import com.example.ui.components.CategoryBadge
+import com.example.ui.components.CopyButtonVariant
+import com.example.ui.components.CopyToClipboardButton
+import com.example.ui.components.GlowingStreamProgressLine
 import com.example.ui.components.InnovaCard
 import com.example.ui.components.InnovaLogoBadge
 import com.example.ui.components.MarkdownText
+import com.example.ui.components.TypingDots
+import com.example.ui.components.TypingIndicatorBubble
+import com.example.ui.components.VoiceRecordingBar
+import com.example.ui.theme.BentoIndigo
 import com.example.ui.theme.CyberDarkBg
 import com.example.ui.theme.CyberDarkSurface
 import com.example.ui.theme.CyberDarkSurfaceElevated
@@ -127,12 +138,65 @@ fun ChatScreen(
     val selectedModel by viewModel.selectedModel.collectAsState()
     val isSpeaking by viewModel.voiceManager.isSpeaking.collectAsState()
     val isListening by viewModel.voiceManager.isListening.collectAsState()
+    val audioAmplitude by viewModel.voiceManager.audioAmplitude.collectAsState()
+    val partialText by viewModel.voiceManager.partialText.collectAsState()
+    val recordingDuration by viewModel.voiceManager.audioRecorder.durationSeconds.collectAsState()
+    val speechError by viewModel.voiceManager.errorMessage.collectAsState()
 
     var inputMessage by remember { mutableStateOf("") }
     var attachedBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var showMenu by remember { mutableStateOf(false) }
     var showClearDialog by remember { mutableStateOf(false) }
     var showDocInsertSheet by remember { mutableStateOf(false) }
+
+    // Audio recording permission launcher
+    val audioPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            viewModel.voiceManager.startListening(
+                onPartial = { partial ->
+                    inputMessage = partial
+                },
+                onResult = { finalResult ->
+                    inputMessage = finalResult
+                }
+            )
+            Toast.makeText(context, "Microphone recording started...", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(context, "Microphone permission is required for voice-to-text", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    LaunchedEffect(speechError) {
+        speechError?.let { err ->
+            Toast.makeText(context, err, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val toggleVoiceRecording: () -> Unit = {
+        if (isListening) {
+            viewModel.voiceManager.stopListening()
+        } else {
+            val hasPermission = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.RECORD_AUDIO
+            ) == PackageManager.PERMISSION_GRANTED
+
+            if (hasPermission) {
+                viewModel.voiceManager.startListening(
+                    onPartial = { partial ->
+                        inputMessage = partial
+                    },
+                    onResult = { finalResult ->
+                        inputMessage = finalResult
+                    }
+                )
+            } else {
+                audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            }
+        }
+    }
 
     // Image Picker Launcher
     val imagePickerLauncher = rememberLauncherForActivityResult(
@@ -156,10 +220,12 @@ fun ChatScreen(
     }
 
     // Auto-scroll to bottom when new messages arrive or stream updates
-    LaunchedEffect(messages.size, streamingText) {
-        if (messages.isNotEmpty() || streamingText.isNotEmpty()) {
-            val totalCount = messages.size + if (streamingText.isNotEmpty()) 1 else 0
-            listState.animateScrollToItem(totalCount - 1)
+    LaunchedEffect(messages.size, streamingText, isStreaming) {
+        if (messages.isNotEmpty() || streamingText.isNotEmpty() || isStreaming) {
+            val totalCount = messages.size + if (isStreaming || streamingText.isNotEmpty()) 1 else 0
+            if (totalCount > 0) {
+                listState.animateScrollToItem(totalCount - 1)
+            }
         }
     }
 
@@ -283,13 +349,18 @@ fun ChatScreen(
             )
         )
 
+        // Glowing linear progress indicator active during response generation
+        if (isStreaming) {
+            GlowingStreamProgressLine()
+        }
+
         // Main Chat Message Area
         Box(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
         ) {
-            if (messages.isEmpty() && streamingText.isEmpty()) {
+            if (messages.isEmpty() && streamingText.isEmpty() && !isStreaming) {
                 // Empty state greeting
                 ChatEmptyState(
                     onSelectPrompt = { prompt ->
@@ -335,10 +406,16 @@ fun ChatScreen(
                         )
                     }
 
-                    // Active streaming token card
-                    if (streamingText.isNotEmpty()) {
-                        item {
-                            StreamingAiMessageItem(streamingText = streamingText)
+                    // Active streaming token card OR typing animation bubble while awaiting generation
+                    if (isStreaming) {
+                        if (streamingText.isNotEmpty()) {
+                            item(key = "active_streaming_item") {
+                                StreamingAiMessageItem(streamingText = streamingText)
+                            }
+                        } else {
+                            item(key = "active_typing_indicator") {
+                                TypingIndicatorBubble(modelName = selectedModel)
+                            }
                         }
                     }
                 }
@@ -422,6 +499,20 @@ fun ChatScreen(
             }
         }
 
+        // Live Voice Recording Control Bar
+        VoiceRecordingBar(
+            isRecording = isListening,
+            durationSeconds = recordingDuration,
+            amplitude = audioAmplitude,
+            partialText = partialText,
+            onCancel = {
+                viewModel.voiceManager.cancelListening()
+            },
+            onFinish = {
+                viewModel.voiceManager.stopListening()
+            }
+        )
+
         // Bottom Chat Input Bar
         Surface(
             modifier = Modifier.fillMaxWidth(),
@@ -473,16 +564,16 @@ fun ChatScreen(
                         onValueChange = { inputMessage = it },
                         placeholder = {
                             Text(
-                                text = "Message Innova AI...",
-                                color = TextSecondaryDark,
+                                text = if (isListening) "Listening to your voice..." else "Message Innova AI...",
+                                color = if (isListening) Color(0xFFFB7185) else TextSecondaryDark,
                                 fontSize = 14.sp
                             )
                         },
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedContainerColor = CyberDarkSurfaceElevated,
                             unfocusedContainerColor = CyberDarkSurfaceElevated,
-                            focusedBorderColor = ElectricPurple,
-                            unfocusedBorderColor = Color(0xFF2E2458),
+                            focusedBorderColor = if (isListening) Color(0xFFE11D48) else ElectricPurple,
+                            unfocusedBorderColor = if (isListening) Color(0xFFE11D48).copy(alpha = 0.6f) else Color(0xFF2E2458),
                             focusedTextColor = TextPrimaryDark,
                             unfocusedTextColor = TextPrimaryDark
                         ),
@@ -493,26 +584,18 @@ fun ChatScreen(
                         maxLines = 4
                     )
 
-                    // Voice Input / Waveform
+                    // Voice Input Microphone Button
                     IconButton(
-                        onClick = {
-                            if (isListening) {
-                                viewModel.voiceManager.stopListening()
-                            } else {
-                                viewModel.voiceManager.startListening { spoken ->
-                                    inputMessage = spoken
-                                }
-                            }
-                        },
+                        onClick = toggleVoiceRecording,
                         modifier = Modifier
                             .size(40.dp)
                             .clip(CircleShape)
-                            .background(if (isListening) Color(0xFFFF2A85) else CyberDarkSurfaceElevated)
+                            .background(if (isListening) Color(0xFFE11D48) else CyberDarkSurfaceElevated)
                             .testTag("chat_voice_record_button")
                     ) {
                         Icon(
                             imageVector = if (isListening) Icons.Default.MicOff else Icons.Default.Mic,
-                            contentDescription = "Voice Input",
+                            contentDescription = if (isListening) "Stop voice recording" else "Start voice recording",
                             tint = if (isListening) Color.White else NeonCyan,
                             modifier = Modifier.size(20.dp)
                         )
@@ -759,17 +842,18 @@ fun ChatMessageItem(
                     // Action buttons bar
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        IconButton(onClick = onCopy, modifier = Modifier.size(30.dp)) {
-                            Icon(
-                                imageVector = Icons.Default.ContentCopy,
-                                contentDescription = "Copy message",
-                                tint = TextSecondaryDark,
-                                modifier = Modifier.size(15.dp)
-                            )
-                        }
+                        CopyToClipboardButton(
+                            textToCopy = message.content,
+                            label = "Copy",
+                            clipLabel = "Innova AI Response",
+                            accentColor = BentoIndigo,
+                            testTag = "btn_copy_chat_response_${message.id}",
+                            variant = CopyButtonVariant.COMPACT,
+                            onCopied = onCopy
+                        )
 
                         IconButton(onClick = onSpeak, modifier = Modifier.size(30.dp)) {
                             Icon(
@@ -818,7 +902,9 @@ fun StreamingAiMessageItem(
     streamingText: String
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("streaming_ai_message_item"),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.Top
     ) {
@@ -844,28 +930,61 @@ fun StreamingAiMessageItem(
                     .padding(16.dp)
             ) {
                 Column {
-                    MarkdownText(
-                        text = streamingText,
-                        textColor = TextPrimaryDark
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.Bottom
                     ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(12.dp),
-                            color = NeonCyan,
-                            strokeWidth = 2.dp
-                        )
-                        Text(
-                            text = "Streaming thoughts...",
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                color = NeonCyan,
-                                fontSize = 11.sp
+                        Box(modifier = Modifier.weight(1f, fill = false)) {
+                            MarkdownText(
+                                text = streamingText,
+                                textColor = TextPrimaryDark
                             )
+                        }
+                        Spacer(modifier = Modifier.width(4.dp))
+                        BlinkingCursor(
+                            cursorColor = NeonCyan,
+                            width = 3.dp,
+                            height = 15.dp,
+                            modifier = Modifier.padding(bottom = 2.dp)
                         )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            TypingDots(
+                                dotSize = 5.dp,
+                                bounceHeight = 3.5.dp,
+                                spacing = 3.dp,
+                                dotColors = listOf(NeonCyan, BentoIndigo, NeonCyan)
+                            )
+                            Text(
+                                text = "Typing response...",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    color = NeonCyan,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            )
+                        }
+
+                        if (streamingText.isNotBlank()) {
+                            CopyToClipboardButton(
+                                textToCopy = streamingText,
+                                label = "Copy",
+                                clipLabel = "Streaming AI Response",
+                                accentColor = NeonCyan,
+                                testTag = "btn_copy_streaming_response",
+                                variant = CopyButtonVariant.COMPACT
+                            )
+                        }
                     }
                 }
             }

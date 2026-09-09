@@ -73,8 +73,11 @@ import androidx.compose.ui.unit.sp
 import com.example.data.db.ConversationEntity
 import com.example.data.db.SavedCreationEntity
 import com.example.ui.components.CategoryBadge
+import com.example.ui.components.CopyButtonVariant
+import com.example.ui.components.CopyToClipboardButton
 import com.example.ui.components.InnovaCard
 import com.example.ui.components.MarkdownText
+import com.example.ui.theme.BentoIndigo
 import com.example.ui.theme.CyberDarkBg
 import com.example.ui.theme.CyberDarkSurface
 import com.example.ui.theme.CyberDarkSurfaceElevated
@@ -427,17 +430,18 @@ fun SavedCreationCard(
                     )
                 }
 
-                Row {
-                    IconButton(
-                        onClick = {
-                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                            clipboard.setPrimaryClip(ClipData.newPlainText("Saved Content", creation.content))
-                            Toast.makeText(context, "Copied content", Toast.LENGTH_SHORT).show()
-                        },
-                        modifier = Modifier.size(28.dp)
-                    ) {
-                        Icon(Icons.Default.ContentCopy, "Copy", tint = TextSecondaryDark, modifier = Modifier.size(16.dp))
-                    }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CopyToClipboardButton(
+                        textToCopy = creation.content,
+                        label = "Copy",
+                        clipLabel = "Saved Creation",
+                        accentColor = BentoIndigo,
+                        testTag = "btn_copy_saved_${creation.id}",
+                        variant = CopyButtonVariant.COMPACT
+                    )
                     IconButton(
                         onClick = {
                             val sendIntent = Intent().apply {

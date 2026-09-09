@@ -1,5 +1,9 @@
 package com.example.ui.components
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.widget.Toast
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -24,7 +28,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Create
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Lightbulb
@@ -37,7 +43,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -46,6 +56,8 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -58,6 +70,7 @@ import com.example.ui.theme.BentoEmerald
 import com.example.ui.theme.BentoIndigo
 import com.example.ui.theme.BentoLogoGradient
 import com.example.ui.theme.BentoTextPrimary
+import kotlinx.coroutines.delay
 import com.example.ui.theme.BentoTextSlate300
 import com.example.ui.theme.BentoTextSlate400
 import com.example.ui.theme.BentoViolet
@@ -277,4 +290,166 @@ fun getCategoryIconAndColor(category: String): Pair<ImageVector, Color> {
         else -> Pair(Icons.Default.Psychology, BentoIndigo)
     }
 }
+
+/**
+ * Visual presentation style for the Copy to Clipboard button.
+ */
+enum class CopyButtonVariant {
+    FILLED,      // Prominent tinted pill with icon and text
+    OUTLINED,    // Outlined border with subtle background
+    COMPACT      // Compact badge button with responsive state
+}
+
+/**
+ * Accessible, reusable 'Copy to Clipboard' button with instant visual feedback,
+ * clipboard synchronization, and haptic-level Toast confirmation.
+ */
+@Composable
+fun CopyToClipboardButton(
+    textToCopy: String,
+    modifier: Modifier = Modifier,
+    label: String = "Copy to Clipboard",
+    clipLabel: String = "Innova AI Content",
+    variant: CopyButtonVariant = CopyButtonVariant.FILLED,
+    accentColor: Color = BentoIndigo,
+    testTag: String = "btn_copy_to_clipboard",
+    onCopied: (() -> Unit)? = null
+) {
+    val context = LocalContext.current
+    var isCopied by remember { mutableStateOf(false) }
+
+    LaunchedEffect(isCopied) {
+        if (isCopied) {
+            delay(2000)
+            isCopied = false
+        }
+    }
+
+    val displayColor = if (isCopied) BentoEmerald else accentColor
+    val displayText = if (isCopied) "Copied!" else label
+
+    when (variant) {
+        CopyButtonVariant.FILLED -> {
+            Surface(
+                onClick = {
+                    if (textToCopy.isNotBlank()) {
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        clipboard.setPrimaryClip(ClipData.newPlainText(clipLabel, textToCopy))
+                        isCopied = true
+                        Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
+                        onCopied?.invoke()
+                    }
+                },
+                modifier = modifier
+                    .testTag(testTag)
+                    .clip(RoundedCornerShape(12.dp)),
+                color = displayColor.copy(alpha = 0.16f),
+                shape = RoundedCornerShape(12.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, displayColor.copy(alpha = 0.4f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isCopied) Icons.Default.Check else Icons.Default.ContentCopy,
+                        contentDescription = "Copy to Clipboard",
+                        tint = displayColor,
+                        modifier = Modifier.size(15.dp)
+                    )
+                    Text(
+                        text = displayText,
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            color = displayColor,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 12.sp
+                        )
+                    )
+                }
+            }
+        }
+        CopyButtonVariant.OUTLINED -> {
+            Surface(
+                onClick = {
+                    if (textToCopy.isNotBlank()) {
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        clipboard.setPrimaryClip(ClipData.newPlainText(clipLabel, textToCopy))
+                        isCopied = true
+                        Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
+                        onCopied?.invoke()
+                    }
+                },
+                modifier = modifier
+                    .testTag(testTag)
+                    .clip(RoundedCornerShape(10.dp)),
+                color = Color.Transparent,
+                shape = RoundedCornerShape(10.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, if (isCopied) BentoEmerald else BentoBorderSubtle)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isCopied) Icons.Default.Check else Icons.Default.ContentCopy,
+                        contentDescription = "Copy to Clipboard",
+                        tint = if (isCopied) BentoEmerald else BentoTextSlate300,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Text(
+                        text = displayText,
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            color = if (isCopied) BentoEmerald else BentoTextSlate300,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 11.5.sp
+                        )
+                    )
+                }
+            }
+        }
+        CopyButtonVariant.COMPACT -> {
+            Surface(
+                onClick = {
+                    if (textToCopy.isNotBlank()) {
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        clipboard.setPrimaryClip(ClipData.newPlainText(clipLabel, textToCopy))
+                        isCopied = true
+                        Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
+                        onCopied?.invoke()
+                    }
+                },
+                modifier = modifier
+                    .testTag(testTag)
+                    .clip(RoundedCornerShape(8.dp)),
+                color = if (isCopied) BentoEmerald.copy(alpha = 0.2f) else CyberDarkSurface,
+                shape = RoundedCornerShape(8.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, if (isCopied) BentoEmerald else BentoBorderSubtle)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isCopied) Icons.Default.Check else Icons.Default.ContentCopy,
+                        contentDescription = "Copy to Clipboard",
+                        tint = if (isCopied) BentoEmerald else BentoTextSlate400,
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Text(
+                        text = if (isCopied) "Copied!" else label,
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            color = if (isCopied) BentoEmerald else BentoTextSlate300,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 11.sp
+                        )
+                    )
+                }
+            }
+        }
+    }
+}
+
 

@@ -82,6 +82,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.ui.components.CopyButtonVariant
+import com.example.ui.components.CopyToClipboardButton
 import com.example.ui.components.InnovaCard
 import com.example.ui.components.MarkdownText
 import com.example.ui.theme.CyberDarkBg
@@ -331,16 +333,18 @@ fun WriterStudioView(viewModel: InnovaViewModel) {
                                     fontWeight = FontWeight.Bold
                                 )
                             )
-                            Row {
-                                IconButton(
-                                    onClick = {
-                                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                        clipboard.setPrimaryClip(ClipData.newPlainText("Innova Content", result))
-                                        Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
-                                    }
-                                ) {
-                                    Icon(Icons.Default.ContentCopy, null, tint = TextSecondaryDark, modifier = Modifier.size(18.dp))
-                                }
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                CopyToClipboardButton(
+                                    textToCopy = result,
+                                    label = "Copy to Clipboard",
+                                    clipLabel = "Writer Copy",
+                                    accentColor = ElectricPurple,
+                                    testTag = "copy_writer_clipboard_button",
+                                    variant = CopyButtonVariant.FILLED
+                                )
                                 IconButton(
                                     onClick = {
                                         val sendIntent = Intent().apply {
@@ -373,6 +377,7 @@ fun ImageStudioView(viewModel: InnovaViewModel) {
 // 3. Code Studio View
 @Composable
 fun CodeStudioView(viewModel: InnovaViewModel) {
+    val context = LocalContext.current
     val language by viewModel.codeLanguage.collectAsState()
     val task by viewModel.codeTask.collectAsState()
     val input by viewModel.codeInput.collectAsState()
@@ -482,13 +487,44 @@ fun CodeStudioView(viewModel: InnovaViewModel) {
             item {
                 InnovaCard(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text(
-                            text = "Code Result ($language)",
-                            style = MaterialTheme.typography.titleSmall.copy(
-                                color = Color(0xFF00F0A8),
-                                fontWeight = FontWeight.Bold
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Code Result ($language)",
+                                style = MaterialTheme.typography.titleSmall.copy(
+                                    color = Color(0xFF00F0A8),
+                                    fontWeight = FontWeight.Bold
+                                )
                             )
-                        )
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                CopyToClipboardButton(
+                                    textToCopy = result,
+                                    label = "Copy Code",
+                                    clipLabel = "Generated Code",
+                                    accentColor = Color(0xFF00F0A8),
+                                    testTag = "copy_code_clipboard_button",
+                                    variant = CopyButtonVariant.FILLED
+                                )
+                                IconButton(
+                                    onClick = {
+                                        val sendIntent = Intent().apply {
+                                            action = Intent.ACTION_SEND
+                                            putExtra(Intent.EXTRA_TEXT, result)
+                                            this.type = "text/plain"
+                                        }
+                                        context.startActivity(Intent.createChooser(sendIntent, "Share Code"))
+                                    }
+                                ) {
+                                    Icon(Icons.Default.Share, "Share", tint = TextSecondaryDark, modifier = Modifier.size(18.dp))
+                                }
+                            }
+                        }
                         MarkdownText(text = result, textColor = TextPrimaryDark)
                     }
                 }
@@ -500,6 +536,7 @@ fun CodeStudioView(viewModel: InnovaViewModel) {
 // 4. Study Studio View
 @Composable
 fun StudyStudioView(viewModel: InnovaViewModel) {
+    val context = LocalContext.current
     val topic by viewModel.studyTopic.collectAsState()
     val mode by viewModel.studyMode.collectAsState()
     val result by viewModel.studyResult.collectAsState()
@@ -614,10 +651,41 @@ fun StudyStudioView(viewModel: InnovaViewModel) {
             item {
                 InnovaCard(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text(
-                            text = "Concept Breakdown ($topic)",
-                            style = MaterialTheme.typography.titleSmall.copy(color = Color(0xFF9D4EDD), fontWeight = FontWeight.Bold)
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Concept Breakdown ($topic)",
+                                style = MaterialTheme.typography.titleSmall.copy(color = Color(0xFF9D4EDD), fontWeight = FontWeight.Bold)
+                            )
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                CopyToClipboardButton(
+                                    textToCopy = result,
+                                    label = "Copy to Clipboard",
+                                    clipLabel = "Study Concept",
+                                    accentColor = Color(0xFF9D4EDD),
+                                    testTag = "copy_study_clipboard_button",
+                                    variant = CopyButtonVariant.FILLED
+                                )
+                                IconButton(
+                                    onClick = {
+                                        val sendIntent = Intent().apply {
+                                            action = Intent.ACTION_SEND
+                                            putExtra(Intent.EXTRA_TEXT, result)
+                                            this.type = "text/plain"
+                                        }
+                                        context.startActivity(Intent.createChooser(sendIntent, "Share Concept Breakdown"))
+                                    }
+                                ) {
+                                    Icon(Icons.Default.Share, "Share", tint = TextSecondaryDark, modifier = Modifier.size(18.dp))
+                                }
+                            }
+                        }
                         MarkdownText(text = result, textColor = TextPrimaryDark)
                     }
                 }
@@ -853,18 +921,32 @@ fun TranslateStudioView(viewModel: InnovaViewModel) {
                                 style = MaterialTheme.typography.titleSmall.copy(color = Color(0xFF3A86FF), fontWeight = FontWeight.Bold)
                             )
 
-                            Row {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 IconButton(onClick = { viewModel.voiceManager.speak(result) }) {
                                     Icon(Icons.AutoMirrored.Filled.VolumeUp, "Listen", tint = NeonCyan, modifier = Modifier.size(18.dp))
                                 }
+                                CopyToClipboardButton(
+                                    textToCopy = result,
+                                    label = "Copy",
+                                    clipLabel = "Translation",
+                                    accentColor = Color(0xFF3A86FF),
+                                    testTag = "copy_translate_clipboard_button",
+                                    variant = CopyButtonVariant.FILLED
+                                )
                                 IconButton(
                                     onClick = {
-                                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                        clipboard.setPrimaryClip(ClipData.newPlainText("Translation", result))
-                                        Toast.makeText(context, "Copied translation", Toast.LENGTH_SHORT).show()
+                                        val sendIntent = Intent().apply {
+                                            action = Intent.ACTION_SEND
+                                            putExtra(Intent.EXTRA_TEXT, result)
+                                            this.type = "text/plain"
+                                        }
+                                        context.startActivity(Intent.createChooser(sendIntent, "Share Translation"))
                                     }
                                 ) {
-                                    Icon(Icons.Default.ContentCopy, "Copy", tint = TextSecondaryDark, modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Default.Share, "Share", tint = TextSecondaryDark, modifier = Modifier.size(18.dp))
                                 }
                             }
                         }
@@ -922,6 +1004,7 @@ fun LanguageSelectorDropdown(
 // 6. Summarizer Studio View
 @Composable
 fun SummarizeStudioView(viewModel: InnovaViewModel) {
+    val context = LocalContext.current
     val input by viewModel.summarizeInput.collectAsState()
     val result by viewModel.summarizeResult.collectAsState()
     val isSummarizing by viewModel.isSummarizing.collectAsState()
@@ -1003,10 +1086,41 @@ fun SummarizeStudioView(viewModel: InnovaViewModel) {
             item {
                 InnovaCard(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text(
-                            text = summaryType,
-                            style = MaterialTheme.typography.titleSmall.copy(color = Color(0xFF06D6A0), fontWeight = FontWeight.Bold)
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = summaryType,
+                                style = MaterialTheme.typography.titleSmall.copy(color = Color(0xFF06D6A0), fontWeight = FontWeight.Bold)
+                            )
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                CopyToClipboardButton(
+                                    textToCopy = result,
+                                    label = "Copy to Clipboard",
+                                    clipLabel = "AI Summary",
+                                    accentColor = Color(0xFF06D6A0),
+                                    testTag = "copy_summary_clipboard_button",
+                                    variant = CopyButtonVariant.FILLED
+                                )
+                                IconButton(
+                                    onClick = {
+                                        val sendIntent = Intent().apply {
+                                            action = Intent.ACTION_SEND
+                                            putExtra(Intent.EXTRA_TEXT, result)
+                                            this.type = "text/plain"
+                                        }
+                                        context.startActivity(Intent.createChooser(sendIntent, "Share Summary"))
+                                    }
+                                ) {
+                                    Icon(Icons.Default.Share, "Share", tint = TextSecondaryDark, modifier = Modifier.size(18.dp))
+                                }
+                            }
+                        }
                         MarkdownText(text = result, textColor = TextPrimaryDark)
                     }
                 }
@@ -1018,6 +1132,7 @@ fun SummarizeStudioView(viewModel: InnovaViewModel) {
 // 7. Brainstorm Studio View
 @Composable
 fun BrainstormStudioView(viewModel: InnovaViewModel) {
+    val context = LocalContext.current
     val topic by viewModel.brainstormTopic.collectAsState()
     val category by viewModel.brainstormCategory.collectAsState()
     val result by viewModel.brainstormResult.collectAsState()
@@ -1099,10 +1214,41 @@ fun BrainstormStudioView(viewModel: InnovaViewModel) {
             item {
                 InnovaCard(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text(
-                            text = "Brainstorm Matrix ($category)",
-                            style = MaterialTheme.typography.titleSmall.copy(color = Color(0xFFFFD166), fontWeight = FontWeight.Bold)
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Brainstorm Matrix ($category)",
+                                style = MaterialTheme.typography.titleSmall.copy(color = Color(0xFFFFD166), fontWeight = FontWeight.Bold)
+                            )
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                CopyToClipboardButton(
+                                    textToCopy = result,
+                                    label = "Copy to Clipboard",
+                                    clipLabel = "Brainstorm Ideas",
+                                    accentColor = Color(0xFFFFD166),
+                                    testTag = "copy_brainstorm_clipboard_button",
+                                    variant = CopyButtonVariant.FILLED
+                                )
+                                IconButton(
+                                    onClick = {
+                                        val sendIntent = Intent().apply {
+                                            action = Intent.ACTION_SEND
+                                            putExtra(Intent.EXTRA_TEXT, result)
+                                            this.type = "text/plain"
+                                        }
+                                        context.startActivity(Intent.createChooser(sendIntent, "Share Brainstorm Ideas"))
+                                    }
+                                ) {
+                                    Icon(Icons.Default.Share, "Share", tint = TextSecondaryDark, modifier = Modifier.size(18.dp))
+                                }
+                            }
+                        }
                         MarkdownText(text = result, textColor = TextPrimaryDark)
                     }
                 }
